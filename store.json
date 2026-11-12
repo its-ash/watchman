@@ -1,0 +1,11 @@
+{
+  "id": "watchman",
+  "name": "Watchman",
+  "repo": "its-ash/watchman",
+  "package": "com.itsash.watchman",
+  "tagline": "Turn an old phone into a home security camera on your Wi-Fi. No cloud, no account.",
+  "description": "Watchman turns a spare phone into a security camera. Put the old phone in Camera mode and it watches the room, detects motion and records short clips. Open Watchman on your own phone in Viewer mode to see the live picture, the motion events and the recorded clips over your home Wi-Fi. Everything stays on your local network, protected by a PIN shown on the camera phone. No cloud, no account, no subscription.",
+  "category": "Security",
+  "icon": "assets/icon/logo-1024.png",
+  "homepage": "https://watchman.itsash.in/"
+}

@@ -1,0 +1,229 @@
+<!doctype html>
+<!-- Watchman landing page (custom). Download links point at the latest GitHub release asset watchman.apk. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watchman: turn an old phone into a home security camera</title>
+<meta name="description" content="Turn an old phone into a home security camera on your Wi-Fi. No cloud, no account.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0B1B2B">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Watchman: turn an old phone into a home security camera">
+<meta property="og:description" content="Turn an old phone into a home security camera on your Wi-Fi. No cloud, no account.">
+<meta property="og:image" content="https://watchman.itsash.in/assets/icon/logo-1024.png">
+<meta property="og:url" content="https://watchman.itsash.in/">
+<link rel="icon" href="assets/icon/logo-1024.png">
+<link rel="apple-touch-icon" href="assets/icon/logo-1024.png">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #F4F8FB; --bg2: #E8F0F6; --card: #FFFFFF; --line: #D3DFE8;
+    --text: #0B1B2B; --muted: #4A5E70;
+    --accent: #22D3EE;
+    --link: #0E7490; --btn-bg: #0B1B2B; --btn-fg: #22D3EE; --tint: #DDF6FB;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #08141F; --bg2: #0B1B2B; --card: #102536; --line: #1D3A52;
+      --text: #E8F2F8; --muted: #9FB6C8;
+      --link: #22D3EE; --btn-bg: #22D3EE; --btn-fg: #08141F; --tint: #12384A;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--link); }
+  a:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  .wrap { width: min(1040px, 100% - 40px); margin-inline: auto; }
+  .skip { position: absolute; left: -999px; } .skip:focus { left: 8px; top: 8px; background: var(--card); padding: 8px 12px; z-index: 9; }
+
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); text-decoration: none; }
+  .brand img { width: 34px; height: 34px; border-radius: 8px; }
+  nav .links { display: flex; gap: 20px; font-size: 15px; }
+  nav .links a { color: var(--muted); text-decoration: none; }
+  nav .links a:hover { color: var(--text); text-decoration: underline; }
+
+  .hero { display: grid; grid-template-columns: 1.2fr .8fr; gap: 40px; align-items: center; padding: 40px 0 72px; }
+  .eyebrow { display: inline-block; padding: 4px 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--tint); font-size: 13px; font-weight: 600; }
+  h1 { font-size: clamp(36px, 6vw, 60px); line-height: 1.06; letter-spacing: -.03em; margin: 16px 0; }
+  h1 span { color: var(--link); }
+  .lead { font-size: 19px; color: var(--muted); max-width: 36ch; margin: 0; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 24px; border-radius: 14px; font-weight: 700; text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--card); transition: transform .15s; }
+  .btn svg { width: 20px; height: 20px; }
+  .btn.primary { background: var(--btn-bg); color: var(--btn-fg); border-color: var(--btn-bg); }
+  .btn:hover { transform: translateY(-2px); }
+  .meta { color: var(--muted); font-size: 14px; margin-top: 12px; }
+  .art { justify-self: center; text-align: center; }
+  .art img { width: min(260px, 60vw); height: auto; border-radius: 22%; box-shadow: 0 24px 60px rgb(11 27 43 / .35); display: block; margin-inline: auto; }
+  .art .ring { margin-top: 18px; display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+  .art .dot { width: 10px; height: 10px; background: var(--accent); }
+
+  section { padding: 56px 0; }
+  h2 { font-size: clamp(26px, 4vw, 36px); letter-spacing: -.02em; line-height: 1.15; margin: 0 0 8px; }
+  .sub { color: var(--muted); margin: 0; max-width: 60ch; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 30px; }
+  .feat { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; }
+  .feat i { display: block; width: 14px; height: 14px; background: var(--accent); margin-bottom: 14px; }
+  .feat h3 { font-size: 18px; margin: 0 0 6px; }
+  .feat p { margin: 0; color: var(--muted); font-size: 15px; }
+  .steps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 30px 0 0; padding: 0; counter-reset: s; }
+  .steps li { list-style: none; counter-increment: s; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; }
+  .steps li::before { content: counter(s); display: grid; place-items: center; width: 34px; height: 34px; background: var(--btn-bg); color: var(--btn-fg); font-weight: 800; margin-bottom: 12px; }
+  .steps strong { display: block; font-size: 17px; margin-bottom: 4px; }
+  .steps span { color: var(--muted); font-size: 15px; }
+  .band { background: var(--bg2); border-block: 1px solid var(--line); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 30px; }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; }
+  .box h3 { margin: 0 0 10px; font-size: 18px; }
+  .box ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 15px; }
+  .box li { margin: 6px 0; }
+  .box li b { color: var(--text); }
+  .final { text-align: center; }
+  .final .cta { justify-content: center; }
+  .final .sub { margin-inline: auto; }
+  footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; text-align: center; padding-top: 16px; }
+    .lead { margin-inline: auto; } .cta { justify-content: center; }
+    .grid { grid-template-columns: 1fr 1fr; } nav .links { display: none; }
+  }
+  @media (max-width: 580px) { .grid, .steps, .two { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } .btn:hover { transform: none; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="wrap">
+  <nav aria-label="Main">
+    <a class="brand" href="#"><img src="assets/icon/logo-1024.png" alt="">Watchman</a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#how">How to use</a>
+      <a href="#privacy">Privacy</a>
+      <a href="https://github.com/its-ash/watchman">GitHub</a>
+    </div>
+  </nav>
+</header>
+
+<main id="main">
+  <section class="wrap hero">
+    <div>
+      <span class="eyebrow">Free · No cloud · No account</span>
+      <h1>Your old phone, now a <span>security camera</span>.</h1>
+      <p class="lead">Turn an old phone into a home security camera on your Wi-Fi. No cloud, no account.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/its-ash/watchman/releases/latest/download/watchman.apk" download>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+          Download APK
+        </a>
+        <a class="btn" href="https://github.com/its-ash/watchman">View on GitHub</a>
+      </div>
+      <p class="meta">Android 8.0 or newer · Both phones on the same Wi-Fi</p>
+    </div>
+    <div class="art">
+      <img src="assets/icon/logo-1024.png" alt="Watchman app icon: cyan pixel art on a dark blue background" width="260" height="260">
+      <div class="ring"><span class="dot" aria-hidden="true"></span>Camera phone watches. Your phone views.</div>
+    </div>
+  </section>
+
+  <div class="band">
+    <section class="wrap" id="features">
+      <h2>What Watchman does</h2>
+      <p class="sub">One app, two modes. Put the spare phone in Camera mode and use your own phone as the Viewer.</p>
+      <div class="grid">
+        <article class="feat"><i></i><h3>Camera and Viewer modes</h3><p>Camera: the old phone watches the room. Viewer: your own phone watches it.</p></article>
+        <article class="feat"><i></i><h3>Motion detection</h3><p>Compares small grayscale copies of the picture. Sensitivity, "ignore small changes" and the cooldown between clips are adjustable.</p></article>
+        <article class="feat"><i></i><h3>Timestamped clips</h3><p>On motion the camera records a short clip (5 to 60 s), with optional sound. Set a storage limit and the oldest clips are removed first.</p></article>
+        <article class="feat"><i></i><h3>Live view</h3><p>Full-screen MJPEG stream over your Wi-Fi, protected by a 4 to 6 digit PIN shown on the camera phone.</p></article>
+        <article class="feat"><i></i><h3>Finds cameras itself</h3><p>The viewer discovers cameras with mDNS, or you can add one by IP address.</p></article>
+        <article class="feat"><i></i><h3>Events and clips</h3><p>See the motion list on the viewer, then play or download any clip.</p></article>
+        <article class="feat"><i></i><h3>Motion alerts</h3><p>Turn on Monitor and the viewer notifies you when a camera sees motion, even with the app closed.</p></article>
+        <article class="feat"><i></i><h3>Runs with the screen off</h3><p>A foreground service keeps the camera working. An optional dim screen can show it is watching.</p></article>
+        <article class="feat"><i></i><h3>Local only</h3><p>Everything stays on your local network. No cloud, no account, no subscription.</p></article>
+      </div>
+    </section>
+  </div>
+
+  <section class="wrap" id="how">
+    <h2>How to use it</h2>
+    <p class="sub">Install on both phones, then set up in a minute.</p>
+    <ol class="steps">
+      <li><strong>Install on both phones</strong><span>Put both on the same Wi-Fi network.</span></li>
+      <li><strong>Start Camera mode</strong><span>On the old phone choose Camera, point it at the room and start. Note the PIN it shows.</span></li>
+      <li><strong>Open Viewer mode</strong><span>On your phone choose Viewer. The camera appears by itself, or add its IP address. Enter the PIN.</span></li>
+      <li><strong>Watch and review</strong><span>Open the live view, browse motion events and clips, and switch on Monitor for alerts.</span></li>
+    </ol>
+  </section>
+
+  <div class="band">
+    <section class="wrap" id="privacy">
+      <h2>Permissions and privacy</h2>
+      <p class="sub">Your video never goes to a cloud server. The camera phone serves it to your own network and nowhere else. The only call to the internet is the update check in Settings.</p>
+      <div class="two">
+        <div class="box">
+          <h3>What it asks for, and why</h3>
+          <ul>
+            <li><b>Camera:</b> to watch the room and record clips.</li>
+            <li><b>Microphone:</b> only for the optional sound in clips.</li>
+            <li><b>Notifications:</b> for the running notification and motion alerts.</li>
+            <li><b>Local network and Wi-Fi state:</b> to serve the stream and find cameras.</li>
+            <li><b>Foreground service and wake lock:</b> to keep working with the screen off.</li>
+            <li><b>Internet:</b> the update check only.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Honest limits</h3>
+          <ul>
+            <li>Works on the <b>local Wi-Fi only</b>. There is no remote access from outside your home network.</li>
+            <li>The stream is <b>plain HTTP</b> on the LAN, protected by a PIN. Use it on a network you trust.</li>
+            <li>Five wrong PIN tries lock a device out for a minute.</li>
+            <li>If a phone cannot record and analyse at once, motion events are still logged but no clips are saved.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="wrap" id="requirements">
+    <h2>Requirements and install</h2>
+    <div class="two">
+      <div class="box">
+        <h3>Requirements</h3>
+        <ul>
+          <li>Android 8.0 (API 26) or newer, on both phones.</li>
+          <li>Both phones on the same Wi-Fi network.</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3>Install the APK</h3>
+        <ul>
+          <li>Download the APK on your phone and open it.</li>
+          <li>If Android asks, allow your browser to install unknown apps.</li>
+          <li>Prefer updates in one place? Get it from <a href="https://store.itsash.in">Ash Store</a>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap final">
+    <h2>Give that old phone a job</h2>
+    <p class="sub">Free to download. No account needed.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/its-ash/watchman/releases/latest/download/watchman.apk" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+        Download APK
+      </a>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <span>Watchman · <a href="https://github.com/its-ash/watchman">GitHub</a> · <a href="https://store.itsash.in">Ash Store</a></span>
+  <span>Developed by <a href="https://itsash.github.io">Ashvini Jangid</a></span>
+</footer>
+</body>
+</html>
