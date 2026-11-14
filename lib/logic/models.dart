@@ -6,6 +6,7 @@ class CameraConfig {
     this.facing = 'back',
     this.audio = false,
     this.dim = true,
+    this.autoRecord = false,
     this.sensitivity = 60,
     this.minArea = 2,
     this.cooldownSec = 10,
@@ -19,6 +20,9 @@ class CameraConfig {
   final String facing;
   final bool audio;
   final bool dim;
+
+  /// Record a clip on motion. Off: motion is only listed; clips come from Record.
+  final bool autoRecord;
 
   /// 1..100. Higher notices smaller brightness changes.
   final int sensitivity;
@@ -38,6 +42,7 @@ class CameraConfig {
     facing: m['facing'] as String? ?? 'back',
     audio: m['audio'] as bool? ?? false,
     dim: m['dim'] as bool? ?? true,
+    autoRecord: m['autoRecord'] as bool? ?? false,
     sensitivity: (m['sensitivity'] as num?)?.toInt() ?? 60,
     minArea: (m['minArea'] as num?)?.toInt() ?? 2,
     cooldownSec: (m['cooldownSec'] as num?)?.toInt() ?? 10,
@@ -100,7 +105,7 @@ class CameraState {
 
 /// One motion event reported by a camera.
 class MotionEvent {
-  const MotionEvent({required this.id, required this.time, required this.score, this.clip});
+  const MotionEvent({required this.id, required this.time, required this.score, this.clip, this.manual = false});
 
   final int id;
   final DateTime time;
@@ -111,11 +116,15 @@ class MotionEvent {
   /// Clip file name on the camera phone, or null when none was recorded.
   final String? clip;
 
+  /// Recorded because a viewer pressed Record (app or web page), not because of motion.
+  final bool manual;
+
   factory MotionEvent.fromJson(Map<String, dynamic> j) => MotionEvent(
     id: (j['id'] as num).toInt(),
     time: DateTime.fromMillisecondsSinceEpoch((j['ts'] as num).toInt()),
     score: (j['score'] as num?)?.toDouble() ?? 0,
     clip: j['clip'] as String?,
+    manual: j['manual'] as bool? ?? false,
   );
 
   /// Parses a JSON array. Newest first.
@@ -123,6 +132,67 @@ class MotionEvent {
     final list = (jsonDecode(json) as List).cast<Map<String, dynamic>>().map(MotionEvent.fromJson).toList();
     list.sort((a, b) => b.id.compareTo(a.id));
     return list;
+  }
+}
+
+/// A camera's `/status` as a viewer sees it (no PIN).
+class RemoteStatus {
+  const RemoteStatus({
+    this.name = 'Camera',
+    this.facing = 'back',
+    this.running = true,
+    this.recording = false,
+    this.recordingAvailable = true,
+    this.motion = false,
+    this.lastMotionMs = 0,
+    this.torch = false,
+    this.hasTorch = false,
+    this.viewers = 0,
+    this.autoRecord,
+    this.sensitivity = 60,
+    this.minArea = 2,
+    this.cooldownSec = 10,
+    this.clipSec = 15,
+  });
+
+  final String name;
+
+  /// Null when the camera runs an older Watchman that always records on motion.
+  final bool? autoRecord;
+  final String facing;
+  final bool running;
+  final bool recording;
+  final bool recordingAvailable;
+  final bool motion;
+  final int lastMotionMs;
+  final bool torch;
+  final bool hasTorch;
+  final int viewers;
+  final int sensitivity;
+  final int minArea;
+  final int cooldownSec;
+  final int clipSec;
+
+  /// Older cameras (before remote controls) send no `hasTorch` / settings; the defaults keep them usable.
+  factory RemoteStatus.fromJson(Map<String, dynamic> j) {
+    int i(String k, int d) => (j[k] as num?)?.toInt() ?? d;
+    return RemoteStatus(
+      name: j['name'] as String? ?? 'Camera',
+      facing: j['facing'] as String? ?? 'back',
+      running: j['running'] as bool? ?? true,
+      recording: j['recording'] as bool? ?? false,
+      recordingAvailable: j['recordingAvailable'] as bool? ?? true,
+      motion: j['motion'] as bool? ?? false,
+      lastMotionMs: i('lastMotionMs', 0),
+      torch: j['torch'] as bool? ?? false,
+      hasTorch: j['hasTorch'] as bool? ?? false,
+      viewers: i('viewers', 0),
+      autoRecord: j['autoRecord'] as bool?,
+      sensitivity: i('sensitivity', 60),
+      minArea: i('minArea', 2),
+      cooldownSec: i('cooldownSec', 10),
+      clipSec: i('clipSec', 15),
+    );
   }
 }
 

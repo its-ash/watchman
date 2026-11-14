@@ -21,6 +21,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Size
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -57,14 +58,16 @@ class CameraService : LifecycleService() {
         const val ACTION_STOP = "com.itsash.watchman.STOP"
         const val ACTION_SWITCH = "com.itsash.watchman.SWITCH"
         const val ACTION_REBIND = "com.itsash.watchman.REBIND"
+        const val ACTION_TORCH = "com.itsash.watchman.TORCH"
+        const val ACTION_RECORD = "com.itsash.watchman.RECORD"
         private const val CHANNEL = "watching"
         private const val NOTIF_ID = 11
 
         fun start(ctx: Context) =
             ContextCompat.startForegroundService(ctx, Intent(ctx, CameraService::class.java).setAction(ACTION_START))
 
-        fun send(ctx: Context, action: String) {
-            if (CameraEngine.running) ctx.startService(Intent(ctx, CameraService::class.java).setAction(action))
+        fun send(ctx: Context, action: String, extras: (Intent) -> Unit = {}) {
+            if (CameraEngine.running) ctx.startService(Intent(ctx, CameraService::class.java).setAction(action).also(extras))
         }
     }
 
@@ -83,6 +86,7 @@ class CameraService : LifecycleService() {
     private val gate = MotionGate()
     private var provider: ProcessCameraProvider? = null
     private var recorderUse: VideoCapture<Recorder>? = null
+    private var camera: Camera? = null
     private var activeRecording: Recording? = null
     private var lastMotionCheck = 0L
     private var lastFrame = 0L
@@ -105,6 +109,8 @@ class CameraService : LifecycleService() {
                 bindCamera()
             }
             ACTION_REBIND -> bindCamera()
+            ACTION_TORCH -> setTorch(intent.getBooleanExtra("on", false))
+            ACTION_RECORD -> recordNow()
             else -> startWatching()
         }
         return START_NOT_STICKY
@@ -187,15 +193,16 @@ class CameraService : LifecycleService() {
             .setQualitySelector(QualitySelector.from(Quality.SD, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)))
             .build()
         val video = VideoCapture.withOutput(recorder)
+        camera = null
         try {
-            p.bindToLifecycle(this, selector, analysis, video)
+            camera = p.bindToLifecycle(this, selector, analysis, video)
             recorderUse = video
             CameraEngine.recordingAvailable = true
             CameraEngine.error = null
         } catch (first: Exception) {
             try {
                 p.unbindAll()
-                p.bindToLifecycle(this, selector, analysis)
+                camera = p.bindToLifecycle(this, selector, analysis)
                 recorderUse = null
                 CameraEngine.recordingAvailable = false
                 CameraEngine.error = null
@@ -205,7 +212,24 @@ class CameraService : LifecycleService() {
             }
         }
         CameraEngine.facing = prefs.facing
+        // A new binding starts with the light off. Keep it on across a rebind when this camera has one.
+        CameraEngine.hasTorch = camera?.cameraInfo?.hasFlashUnit() == true
+        if (CameraEngine.torch && CameraEngine.hasTorch) setTorch(true) else CameraEngine.torch = false
         updateNotification()
+    }
+
+    private fun setTorch(on: Boolean) {
+        val cam = camera
+        if (cam == null || !CameraEngine.hasTorch) {
+            CameraEngine.torch = false
+            return
+        }
+        CameraEngine.torch = on
+        try {
+            cam.cameraControl.enableTorch(on)
+        } catch (_: Exception) {
+            CameraEngine.torch = false
+        }
     }
 
     // ---- analysis (runs on analysisExecutor) ----
@@ -261,11 +285,25 @@ class CameraService : LifecycleService() {
 
     // ---- clips (main thread) ----
 
-    @SuppressLint("MissingPermission")
     private fun onMotion(score: Double) {
         if (!CameraEngine.running) return
         val id = events.add(System.currentTimeMillis(), score)
-        val video = recorderUse ?: return
+        // Motion is always listed (and the viewer's Monitor still notifies); a clip only when Auto record is on.
+        if (prefs.autoRecord) startClip(id)
+    }
+
+    /** A viewer asked for a clip now (app or web page). Logged as a manual event. */
+    private fun recordNow() {
+        if (!CameraEngine.running || recorderUse == null || activeRecording != null) {
+            CameraEngine.recording = activeRecording != null
+            return
+        }
+        startClip(events.add(System.currentTimeMillis(), 0.0, manual = true))
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startClip(id: Long) {
+        val video = recorderUse ?: run { CameraEngine.recording = false; return }
         if (activeRecording != null) return
         val name = "clip_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".mp4"
         val file = File(prefs.clipsDir(), name)

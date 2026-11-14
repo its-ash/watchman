@@ -205,9 +205,16 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
               style: context.text.displaySmall?.copyWith(letterSpacing: 8, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: UiSpace.sm),
-            if (s.endpoint != null)
-              UiKeyValue('Address', s.endpoint!, copyable: true, mono: true)
-            else
+            if (s.endpoint != null) ...[
+              UiKeyValue('Address', s.endpoint!, copyable: true, mono: true),
+              UiKeyValue('In a browser', 'http://${s.endpoint!}/', copyable: true, mono: true),
+              const SizedBox(height: UiSpace.xs),
+              Text(
+                'Watch from the Watchman app in Viewer mode, or open the browser address on any phone or computer on this Wi-Fi.',
+                textAlign: TextAlign.center,
+                style: context.text.bodySmall?.copyWith(color: context.colors.textMuted),
+              ),
+            ] else
               Text('No Wi-Fi address found. Connect to Wi-Fi.',
                   style: context.text.bodySmall?.copyWith(color: context.colors.warning)),
           ],
@@ -236,6 +243,22 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
         ],
       ),
       Text(last, style: context.text.bodySmall?.copyWith(color: context.colors.textMuted)),
+      UiListGroup(
+        children: [
+          UiSwitchTile(
+            'Auto record',
+            subtitle: _config.autoRecord
+                ? 'Motion records a ${_config.clipSec} s clip.'
+                : 'Off. Motion is only listed. Record from the viewer or the browser.',
+            icon: Icons.fiber_manual_record_rounded,
+            value: _config.autoRecord,
+            onChanged: (v) async {
+              await _p.setConfig('autoRecord', v);
+              _refresh();
+            },
+          ),
+        ],
+      ),
       if (!s.recordingAvailable)
         const UiAlert('This phone cannot record video together with the live view. Motion is still detected and listed.',
             status: UiStatus.warning),

@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Watchman</title>
+<!-- Served by the Watchman camera phone (WatchmanServer.kt, GET /). Everything is same-origin: no CDNs. -->
+<style>
+  :root {
+    --bg: #F4F8FB; --card: #FFFFFF; --line: #D3DFE8; --text: #0B1B2B; --muted: #4A5E70;
+    --accent: #0E7490; --accent-fg: #FFFFFF; --tint: #DDF6FB;
+    --ok: #15803D; --warn: #B45309; --bad: #B91C1C;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #08141F; --card: #102536; --line: #1D3A52; --text: #E8F2F8; --muted: #9FB6C8;
+      --accent: #22D3EE; --accent-fg: #08141F; --tint: #12384A;
+      --ok: #4ADE80; --warn: #FBBF24; --bad: #F87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  [hidden] { display: none !important; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 15px; margin: 0 0 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  button, .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--card); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; text-decoration: none;
+  }
+  button:hover, .btn:hover { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; border-color: var(--line); }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  button.on { background: var(--tint); border-color: var(--accent); }
+  button.danger { color: var(--bad); }
+  button.small, .btn.small { min-height: 32px; padding: 0 10px; font-size: 13px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; border: 1px solid var(--line); color: var(--muted); }
+  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
+  .pill.pulse::before { animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity: .2; } }
+
+  /* login */
+  #login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  #login .card { width: 100%; max-width: 360px; text-align: center; }
+  #login input { width: 100%; margin: 14px 0 10px; padding: 12px; font: 600 24px/1 ui-monospace, monospace;
+    letter-spacing: .4em; text-align: center; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--text); }
+  #login button { width: 100%; }
+  .error { color: var(--bad); min-height: 1.4em; margin: 8px 0 0; font-size: 14px; }
+
+  /* app */
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+  header .grow { flex: 1; min-width: 140px; }
+  .layout { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr) 340px; } }
+  .screen { position: relative; background: #000; border-radius: 14px; overflow: hidden; aspect-ratio: 4 / 3; }
+  .screen img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .screen .overlay { position: absolute; inset: 0; display: grid; place-items: center; color: #fff;
+    background: rgba(0,0,0,.45); font-weight: 600; text-align: center; padding: 16px; }
+  .screen .fs { position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,.55); color: #fff; border-color: transparent; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .controls button { flex: 1 1 140px; }
+  .side { display: grid; gap: 14px; align-content: start; }
+  label.toggle { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 14px; cursor: pointer; }
+  label.toggle input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent); flex: none; }
+  label.range { display: block; margin: 0 0 12px; }
+  label.range span { display: flex; justify-content: space-between; font-size: 14px; }
+  label.range input { width: 100%; accent-color: var(--accent); }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .list li:first-child { border-top: 0; }
+  .list .what { flex: 1; min-width: 160px; }
+  .list .what b { display: block; font-weight: 600; }
+  video { width: 100%; border-radius: 10px; background: #000; margin-top: 10px; }
+  .spinner { width: 28px; height: 28px; border: 3px solid rgba(255,255,255,.3); border-top-color: #fff;
+    border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+    padding: 10px 16px; border-radius: 10px; font-weight: 600; max-width: 90vw; z-index: 10; }
+</style>
+</head>
+<body>
+
+<section id="login" hidden>
+  <form class="card" id="loginForm" autocomplete="off">
+    <h1 id="loginName">Watchman</h1>
+    <p class="muted small">Enter the PIN shown on the camera phone.</p>
+    <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" aria-label="PIN" required>
+    <button class="primary" type="submit" id="loginBtn">Open camera</button>
+    <p class="error" id="loginError" role="alert"></p>
+  </form>
+</section>
+
+<main id="app" hidden>
+  <header>
+    <div class="grow">
+      <h1 id="name">Camera</h1>
+      <div class="muted small" id="lastMotion">No motion yet</div>
+    </div>
+    <span class="pill" id="pLive">Connecting</span>
+    <span class="pill" id="pMotion">No motion</span>
+    <span class="pill bad pulse" id="pRec" hidden>Recording</span>
+    <span class="pill" id="pViewers">0 watching</span>
+    <button class="small" id="logout" type="button">Log out</button>
+  </header>
+
+  <div class="layout">
+    <div>
+      <div class="screen" id="screen">
+        <img id="live" alt="Live view">
+        <div class="overlay" id="overlay"><div class="spinner"></div></div>
+        <button class="small fs" id="fullscreen" type="button" title="Full screen">⛶ Full screen</button>
+      </div>
+      <div class="controls">
+        <button id="cSwitch" type="button">⇄ Switch camera</button>
+        <button id="cTorch" type="button" hidden>☀ Light off</button>
+        <button id="cRecord" type="button">● Record clip</button>
+        <button id="cSnap" type="button">⬇ Snapshot</button>
+      </div>
+      <p class="muted small" id="recNote" hidden>This phone cannot record clips while it streams. Motion is still listed.</p>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <h2>Motion detection</h2>
+        <label class="toggle" id="autoRow" hidden>
+          <input type="checkbox" id="autoRecord">
+          <span><b>Auto record</b><br><span class="muted small" id="autoHint"></span></span>
+        </label>
+        <label class="range"><span>Sensitivity <b id="vSensitivity"></b></span>
+          <input type="range" id="sensitivity" min="1" max="100" step="1"></label>
+        <label class="range"><span>Ignore changes smaller than <b id="vMinArea"></b></span>
+          <input type="range" id="minArea" min="1" max="30" step="1"></label>
+        <label class="range"><span>Wait between clips <b id="vCooldownSec"></b></span>
+          <input type="range" id="cooldownSec" min="0" max="120" step="1"></label>
+        <label class="range"><span>Clip length <b id="vClipSec"></b></span>
+          <input type="range" id="clipSec" min="5" max="60" step="1"></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <header style="margin-bottom:6px">
+      <h2 class="grow" style="margin:0">Events and clips</h2>
+      <button class="small" id="refresh" type="button">↻ Refresh</button>
+    </header>
+    <div id="player" hidden>
+      <div class="muted small" id="playerTitle"></div>
+      <video id="video" controls playsinline></video>
+      <button class="small" id="closePlayer" type="button" style="margin-top:8px">Close player</button>
+    </div>
+    <p class="muted" id="emptyEvents">No motion yet. Events and clips from this camera show up here.</p>
+    <ul class="list" id="events"></ul>
+  </div>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const SETTINGS = {
+  sensitivity: (v) => String(v),
+  minArea: (v) => v + '% of the picture',
+  cooldownSec: (v) => v + ' s',
+  clipSec: (v) => v + ' s',
+};
+let status = null;
+let statusTimer = null;
+let eventsTimer = null;
+let retryTimer = null;
+let dragging = null;
+let autoBusy = false;
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.hidden = true; }, 3500);
+}
+
+function when(ms) {
+  const d = new Date(ms);
+  const today = new Date().toDateString() === d.toDateString();
+  return today ? 'Today ' + d.toLocaleTimeString() : d.toLocaleString();
+}
+
+function bytes(n) {
+  if (n < 1024 * 1024) return Math.max(1, Math.round(n / 1024)) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+class AuthError extends Error {}
+
+async function api(path, body) {
+  const opts = body === undefined
+    ? { cache: 'no-store', credentials: 'same-origin' }
+    : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  const res = await fetch(path, opts);
+  if (res.status === 401 || res.status === 429) throw new AuthError(res.status === 429 ? 'locked' : 'pin');
+  let data = null;
+  try { data = await res.json(); } catch (_) { /* no body */ }
+  if (!res.ok) throw new Error((data && data.error) || ('Camera answered ' + res.status));
+  return data;
+}
+
+// ---- login ----
+
+async function showLogin(message) {
+  stopApp();
+  $('app').hidden = true;
+  $('login').hidden = false;
+  $('loginError').textContent = message || '';
+  try {
+    const hello = await (await fetch('/hello', { cache: 'no-store' })).json();
+    $('loginName').textContent = hello.name || 'Watchman';
+    document.title = (hello.name || 'Camera') + ' · Watchman';
+  } catch (_) { /* name is optional */ }
+  $('pin').focus();
+}
+
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pin = $('pin').value.trim();
+  if (!/^[0-9]{4,6}$/.test(pin)) { $('loginError').textContent = 'The PIN has 4 to 6 digits.'; return; }
+  $('loginBtn').disabled = true;
+  $('loginError').textContent = '';
+  try {
+    const res = await fetch('/login', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { $('loginError').textContent = data.error || 'Could not log in.'; return; }
+    $('pin').value = '';
+    startApp();
+  } catch (_) {
+    $('loginError').textContent = 'Could not reach the camera.';
+  } finally {
+    $('loginBtn').disabled = false;
+  }
+});
+
+$('logout').addEventListener('click', async () => {
+  try { await api('/logout', {}); } catch (_) { /* logged out anyway */ }
+  showLogin();
+});
+
+// ---- live view ----
+
+let frameTimer = null;
+
+function startStream() {
+  clearTimeout(retryTimer);
+  $('overlay').hidden = false;
+  $('overlay').replaceChildren(Object.assign(document.createElement('div'), { className: 'spinner' }));
+  const img = $('live');
+  img.removeAttribute('src');
+  img.src = '/stream?t=' + Date.now();
+  // Browsers differ on 'load' for multipart images: watch for the first decoded frame instead.
+  clearInterval(frameTimer);
+  frameTimer = setInterval(() => {
+    if (img.naturalWidth > 0) { clearInterval(frameTimer); $('overlay').hidden = true; setLive(true); }
+  }, 250);
+}
+
+function stopStream() {
+  clearTimeout(retryTimer);
+  clearInterval(frameTimer);
+  $('live').removeAttribute('src');
+}
+$('live').addEventListener('error', () => {
+  if (document.hidden || $('app').hidden || !$('live').getAttribute('src')) return;
+  clearInterval(frameTimer);
+  setLive(false);
+  $('overlay').hidden = false;
+  $('overlay').textContent = 'Connection lost. Reconnecting…';
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(async () => {
+    try { await refreshStatus(); startStream(); } catch (_) { retryTimer = setTimeout(startStream, 3000); }
+  }, 2000);
+});
+
+function setLive(ok) {
+  const p = $('pLive');
+  p.textContent = ok ? 'Live' : 'Offline';
+  p.className = 'pill ' + (ok ? 'ok pulse' : 'bad');
+}
+
+$('fullscreen').addEventListener('click', () => {
+  const s = $('screen');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (s.requestFullscreen) s.requestFullscreen();
+});
+
+document.addEventListener('visibilitychange', () => {
+  if ($('app').hidden) return;
+  // A hidden tab stops the stream so the camera does not encode frames for nobody.
+  if (document.hidden) stopStream(); else startStream();
+});
+
+// ---- status and controls ----
+
+function render(s) {
+  status = s;
+  $('name').textContent = s.name || 'Camera';
+  document.title = (s.name || 'Camera') + ' · Watchman';
+  $('lastMotion').textContent = s.lastMotionMs ? 'Last motion ' + when(s.lastMotionMs) : 'No motion yet';
+  $('pMotion').textContent = s.motion ? 'Motion' : 'No motion';
+  $('pMotion').className = 'pill ' + (s.motion ? 'warn' : '');
+  $('pRec').hidden = !s.recording;
+  $('pViewers').textContent = s.viewers + ' watching';
+  $('cTorch').hidden = !s.hasTorch;
+  $('cTorch').textContent = s.torch ? '☀ Light on' : '☀ Light off';
+  $('cTorch').classList.toggle('on', !!s.torch);
+  $('cSwitch').textContent = '⇄ Switch to ' + (s.facing === 'front' ? 'back' : 'front');
+  $('cRecord').disabled = !!s.recording || s.recordingAvailable === false;
+  $('cRecord').textContent = s.recording ? '● Recording…' : '● Record clip';
+  $('recNote').hidden = s.recordingAvailable !== false;
+  // An older camera sends no autoRecord: it always records on motion, so there is nothing to switch.
+  $('autoRow').hidden = typeof s.autoRecord !== 'boolean';
+  if (typeof s.autoRecord === 'boolean' && !autoBusy) {
+    $('autoRecord').checked = s.autoRecord;
+    $('autoHint').textContent = s.autoRecord
+      ? 'Motion records a ' + s.clipSec + ' s clip.'
+      : 'Off. Motion is only listed. Press Record clip for a clip.';
+  }
+  for (const key of Object.keys(SETTINGS)) {
+    if (dragging === key || s[key] === undefined) continue;
+    $(key).value = s[key];
+    $('v' + key[0].toUpperCase() + key.slice(1)).textContent = SETTINGS[key](s[key]);
+  }
+}
+
+async function refreshStatus() {
+  try {
+    render(await api('/status'));
+  } catch (e) {
+    if (e instanceof AuthError) { showLogin(e.message === 'locked' ? 'Too many wrong PINs. Try again in a minute.' : 'Log in again.'); throw e; }
+    setLive(false);
+    throw e;
+  }
+}
+
+async function control(path, body, okMsg) {
+  try {
+    const r = await api(path, body || {});
+    if (r && r.status) render(r.status);
+    if (okMsg) toast(okMsg);
+    setTimeout(() => refreshStatus().catch(() => {}), 700);
+    return true;
+  } catch (e) {
+    if (e instanceof AuthError) showLogin('Log in again.');
+    else toast(e.message);
+    return false;
+  }
+}
+
+$('cSwitch').addEventListener('click', async () => {
+  if (await control('/control/switch', {}, 'Switching camera…')) setTimeout(startStream, 1200);
+});
+$('cTorch').addEventListener('click', () => control('/control/torch', { on: !(status && status.torch) }));
+$('cRecord').addEventListener('click', async () => {
+  if (await control('/control/record', {}, 'Recording a clip.')) {
+    setTimeout(loadEvents, ((status && status.clipSec) || 15) * 1000 + 2500);
+  }
+});
+$('cSnap').addEventListener('click', async () => {
+  try {
+    const res = await fetch('/snapshot.jpg', { cache: 'no-store', credentials: 'same-origin' });
+    if (!res.ok) throw new Error('No picture yet. Try again.');
+    const url = URL.createObjectURL(await res.blob());
+    const a = Object.assign(document.createElement('a'), {
+      href: url, download: 'watchman_' + new Date().toISOString().replace(/[:.]/g, '-') + '.jpg',
+    });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) { toast(e.message); }
+});
+
+$('autoRecord').addEventListener('change', async (e) => {
+  autoBusy = true;
+  const on = e.target.checked;
+  if (!(await control('/control/settings', { autoRecord: on }, on ? 'Auto record on.' : 'Auto record off.'))) {
+    e.target.checked = !on;
+  }
+  autoBusy = false;
+  if (status) render(status);
+});
+
+for (const key of Object.keys(SETTINGS)) {
+  const input = $(key);
+  const label = $('v' + key[0].toUpperCase() + key.slice(1));
+  input.addEventListener('input', () => { dragging = key; label.textContent = SETTINGS[key](Number(input.value)); });
+  input.addEventListener('change', async () => {
+    await control('/control/settings', { [key]: Number(input.value) });
+    dragging = null;
+  });
+}
+
+// ---- events and clips ----
+
+function clipButtons(name, time) {
+  const play = Object.assign(document.createElement('button'), { type: 'button', className: 'small', textContent: '▶ Play' });
+  play.addEventListener('click', () => {
+    $('player').hidden = false;
+    $('playerTitle').textContent = when(time);
+    $('video').src = '/clips/' + encodeURIComponent(name);
+    $('video').play().catch(() => {});
+    $('player').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  const dl = Object.assign(document.createElement('a'), {
+    className: 'btn small', textContent: '⬇ Download', href: '/clips/' + encodeURIComponent(name), download: name,
+  });
+  const del = Object.assign(document.createElement('button'), { type: 'button', className: 'small danger', textContent: 'Delete' });
+  del.addEventListener('click', async () => {
+    if (!confirm('Delete this clip from the camera phone?\n' + when(time))) return;
+    if (await control('/control/delete-clip', { name }, 'Clip deleted.')) {
+      if ($('video').src.endsWith('/clips/' + encodeURIComponent(name))) closePlayer();
+      loadEvents();
+    }
+  });
+  return [play, dl, del];
+}
+
+function row(title, subtitle, buttons) {
+  const li = document.createElement('li');
+  const what = document.createElement('div');
+  what.className = 'what';
+  const b = document.createElement('b');
+  b.textContent = title;
+  const sub = document.createElement('span');
+  sub.className = 'muted small';
+  sub.textContent = subtitle;
+  what.append(b, sub);
+  li.append(what, ...buttons);
+  return li;
+}
+
+async function loadEvents() {
+  let events, clips;
+  try {
+    [events, clips] = await Promise.all([api('/events?since=0'), api('/clips')]);
+  } catch (e) {
+    if (e instanceof AuthError) showLogin('Log in again.');
+    return;
+  }
+  const byName = new Map(clips.map((c) => [c.name, c]));
+  const used = new Set();
+  const list = $('events');
+  list.replaceChildren();
+  events.sort((a, b) => b.id - a.id);
+  for (const e of events) {
+    const clip = e.clip && byName.get(e.clip);
+    if (clip) used.add(clip.name);
+    const what = e.manual ? 'Recorded from a viewer' : e.score.toFixed(1) + '% of the picture moved';
+    const extra = clip ? ' · ' + bytes(clip.size) : (e.clip ? ' · clip deleted' : ' · no clip');
+    list.append(row(when(e.ts), what + extra, clip ? clipButtons(clip.name, e.ts) : []));
+  }
+  for (const c of clips.filter((c) => !used.has(c.name)).sort((a, b) => b.ts - a.ts)) {
+    list.append(row(when(c.ts), 'Clip · ' + bytes(c.size), clipButtons(c.name, c.ts)));
+  }
+  $('emptyEvents').hidden = list.children.length > 0;
+}
+
+function closePlayer() {
+  $('video').pause();
+  $('video').removeAttribute('src');
+  $('video').load();
+  $('player').hidden = true;
+}
+$('closePlayer').addEventListener('click', closePlayer);
+$('refresh').addEventListener('click', loadEvents);
+
+// ---- lifecycle ----
+
+function stopApp() {
+  clearInterval(statusTimer);
+  clearInterval(eventsTimer);
+  stopStream();
+}
+
+async function startApp() {
+  try {
+    await refreshStatus();
+  } catch (e) {
+    if (e instanceof AuthError) return; // the login form is showing
+  }
+  $('login').hidden = true;
+  $('app').hidden = false;
+  startStream();
+  loadEvents();
+  clearInterval(statusTimer);
+  clearInterval(eventsTimer);
+  statusTimer = setInterval(() => { if (!document.hidden) refreshStatus().catch(() => {}); }, 2000);
+  eventsTimer = setInterval(() => { if (!document.hidden) loadEvents(); }, 15000);
+}
+
+startApp().catch(() => {});
+</script>
+</body>
+</html>

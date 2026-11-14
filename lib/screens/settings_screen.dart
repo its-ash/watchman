@@ -184,6 +184,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'Raise the sensitivity to notice fainter changes. Raise "ignore small changes" if shadows or '
                       'sensor noise trigger clips.',
                   children: [
+                    UiSwitchTile(
+                      'Auto record',
+                      subtitle: 'Record a clip when motion is seen. Off: motion is only listed, and clips are '
+                          'recorded only when you press Record in the viewer or the browser.',
+                      icon: Icons.fiber_manual_record_rounded,
+                      value: c.autoRecord,
+                      onChanged: (v) => _set('autoRecord', v),
+                    ),
                     _slider('sensitivity', 'Sensitivity', c.sensitivity, 1, 100, (v) => '${v.round()}'),
                     _slider('minArea', 'Ignore changes smaller than', c.minArea, 1, 30, (v) => '${v.round()}% of the picture'),
                     _slider('cooldownSec', 'Wait between clips', c.cooldownSec, 0, 120, (v) => '${v.round()} s'),

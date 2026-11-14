@@ -14,13 +14,22 @@ import java.net.URLDecoder
 import java.util.concurrent.Executors
 
 /**
- * Tiny HTTP/1.1 server for the LAN. Routes (all but /hello need the PIN as header X-Pin or ?pin=):
- *   /hello            no PIN; {"app":"watchman","name":...}
- *   /status           JSON status
- *   /snapshot.jpg     one JPEG
- *   /stream           MJPEG, multipart/x-mixed-replace
- *   /events?since=N   motion events with id > N
- *   /clips            clip list;  /clips/<name>.mp4  the clip (Range supported)
+ * Tiny HTTP/1.1 server for the LAN, used by the Watchman viewer app and by any browser.
+ *
+ * Open routes:
+ *   GET  /                web page (PIN login, live view, controls, events and clips)
+ *   GET  /hello           {"app":"watchman","name":...}
+ *   POST /login           {"pin":"..."} -> session cookie for the web page;  POST /logout
+ * Everything else needs the PIN (header X-Pin or ?pin=) or a valid session cookie:
+ *   GET  /status          JSON status (state + motion settings)
+ *   GET  /snapshot.jpg    one JPEG
+ *   GET  /stream          MJPEG, multipart/x-mixed-replace
+ *   GET  /events?since=N  motion events with id > N
+ *   GET  /clips           clip list;  /clips/<name>.mp4  the clip (Range supported)
+ *   POST /control/switch | /control/torch {on} | /control/record | /control/settings {autoRecord: bool, key: int}
+ *        | /control/delete-clip {name}   -> {"ok":true,"status":{...}} or {"error":"..."}
+ * Every POST must be Content-Type application/json: a plain cross-site form cannot send that, and the
+ * session cookie is SameSite=Strict, so other web pages cannot drive the camera.
  */
 class WatchmanServer(
     private val ctx: Context,
@@ -30,6 +39,11 @@ class WatchmanServer(
 ) {
     private var server: ServerSocket? = null
     private val pool = Executors.newCachedThreadPool { r -> Thread(r, "watchman-http").apply { isDaemon = true } }
+    private val sessions = WebSessions()
+    private val clips = ClipStore(prefs, events)
+    private val page: ByteArray? by lazy {
+        try { ctx.assets.open("web/index.html").use { it.readBytes() } } catch (_: Exception) { null }
+    }
 
     /** Binds the preferred port, or any free port when it is taken. Returns the port. */
     fun start(): Int {
@@ -55,7 +69,13 @@ class WatchmanServer(
         pool.shutdownNow()
     }
 
-    private class Request(val path: String, val query: Map<String, String>, val headers: Map<String, String>)
+    private class Request(
+        val method: String,
+        val path: String,
+        val query: Map<String, String>,
+        val headers: Map<String, String>,
+        val body: String,
+    )
 
     private fun readRequest(input: BufferedInputStream): Request? {
         val sb = StringBuilder()
@@ -69,7 +89,7 @@ class WatchmanServer(
         }
         val lines = sb.toString().split("\r\n")
         val parts = lines.firstOrNull()?.split(" ") ?: return null
-        if (parts.size < 2 || parts[0] != "GET") return null
+        if (parts.size < 2 || (parts[0] != "GET" && parts[0] != "POST")) return null
         val target = parts[1]
         val path = target.substringBefore('?')
         val query = HashMap<String, String>()
@@ -85,7 +105,20 @@ class WatchmanServer(
             val i = l.indexOf(':')
             if (i > 0) headers[l.substring(0, i).trim().lowercase()] = l.substring(i + 1).trim()
         }
-        return Request(path, query, headers)
+        var body = ""
+        if (parts[0] == "POST") {
+            val len = headers["content-length"]?.toIntOrNull() ?: 0
+            if (len < 0 || len > MAX_BODY) return null
+            val buf = ByteArray(len)
+            var got = 0
+            while (got < len) {
+                val n = input.read(buf, got, len - got)
+                if (n < 0) return null
+                got += n
+            }
+            body = String(buf, Charsets.UTF_8)
+        }
+        return Request(parts[0], path, query, headers, body)
     }
 
     private fun handle(socket: Socket) {
@@ -107,18 +140,43 @@ class WatchmanServer(
     }
 
     private fun route(req: Request, socket: Socket, out: OutputStream) {
-        if (req.path == "/hello") {
+        val get = req.method == "GET"
+        if (get && (req.path == "/" || req.path == "/index.html")) {
+            val html = page
+            if (html == null) respond(out, 404, "application/json", """{"error":"no page"}""".toByteArray())
+            else respond(out, 200, "text/html; charset=utf-8", html, PAGE_HEADERS)
+            return
+        }
+        if (get && req.path == "/hello") {
             val j = JSONObject().put("app", "watchman").put("name", prefs.cameraName).put("auth", "pin")
             respond(out, 200, "application/json", j.toString().toByteArray())
             return
         }
+        if (!get && req.headers["content-type"]?.startsWith("application/json") != true) {
+            json(out, 415, JSONObject().put("error", "Send JSON."))
+            return
+        }
         val client = (socket.inetAddress as? InetAddress)?.hostAddress ?: "?"
         val now = System.currentTimeMillis()
+        if (req.path == "/login") {
+            login(req, client, now, out)
+            return
+        }
+        if (req.path == "/logout") {
+            sessions.remove(WebSessions.cookie(req.headers["cookie"]))
+            json(out, 200, JSONObject().put("ok", true), listOf("Set-Cookie: ${WebSessions.COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict"))
+            return
+        }
         val given = req.headers["x-pin"] ?: req.query["pin"]
-        if (!guard.check(client, given, prefs.pin, now)) {
+        val session = given == null && sessions.isValid(WebSessions.cookie(req.headers["cookie"]), prefs.pin, now)
+        if (!session && !guard.check(client, given, prefs.pin, now)) {
             val locked = guard.isLocked(client, now)
             respond(out, if (locked) 429 else 401, "application/json",
                 JSONObject().put("error", if (locked) "locked" else "pin").toString().toByteArray())
+            return
+        }
+        if (!get) {
+            control(req, out)
             return
         }
         when {
@@ -134,6 +192,66 @@ class WatchmanServer(
             req.path == "/stream" -> stream(out)
             else -> respond(out, 404, "application/json", """{"error":"not found"}""".toByteArray())
         }
+    }
+
+    private fun login(req: Request, client: String, now: Long, out: OutputStream) {
+        val pin = try { JSONObject(req.body).optString("pin", "") } catch (_: Exception) { "" }
+        if (!guard.check(client, pin, prefs.pin, now)) {
+            val locked = guard.isLocked(client, now)
+            json(out, if (locked) 429 else 401, JSONObject().put(
+                "error", if (locked) "Too many wrong PINs. Try again in a minute." else "Wrong PIN."))
+            return
+        }
+        val token = sessions.create(prefs.pin, now)
+        json(
+            out, 200, JSONObject().put("ok", true).put("name", prefs.cameraName),
+            listOf("Set-Cookie: ${WebSessions.COOKIE}=$token; Path=/; Max-Age=604800; HttpOnly; SameSite=Strict"),
+        )
+    }
+
+    /** Remote controls, shared by the web page and the viewer app. Runs only after the PIN check. */
+    private fun control(req: Request, out: OutputStream) {
+        val body = try {
+            if (req.body.isBlank()) JSONObject() else JSONObject(req.body)
+        } catch (_: Exception) {
+            json(out, 400, JSONObject().put("error", "Bad JSON."))
+            return
+        }
+        fun fail(code: Int, msg: String) = json(out, code, JSONObject().put("error", msg))
+        if (!CameraEngine.running) return fail(409, "The camera is not running.")
+        when (req.path) {
+            "/control/switch" -> CameraService.send(ctx, CameraService.ACTION_SWITCH)
+            "/control/torch" -> {
+                if (!CameraEngine.hasTorch) return fail(409, "This camera has no light.")
+                val on = body.optBoolean("on", !CameraEngine.torch)
+                CameraEngine.torch = on
+                CameraService.send(ctx, CameraService.ACTION_TORCH) { it.putExtra("on", on) }
+            }
+            "/control/record" -> {
+                if (!CameraEngine.recordingAvailable) return fail(409, "This phone cannot record clips while it streams.")
+                if (CameraEngine.recording) return fail(409, "Already recording.")
+                CameraEngine.recording = true // shown at once; the service resets it if the clip cannot start
+                CameraService.send(ctx, CameraService.ACTION_RECORD)
+            }
+            "/control/settings" -> {
+                if (body.has("autoRecord")) {
+                    val v = body.opt("autoRecord") as? Boolean ?: return fail(400, "autoRecord must be true or false.")
+                    prefs.autoRecord = v
+                }
+                for (key in REMOTE_SETTINGS) {
+                    if (!body.has(key)) continue
+                    val v = body.opt(key) as? Number ?: return fail(400, "$key must be a number.")
+                    prefs.set(key, v.toInt())
+                }
+            }
+            "/control/delete-clip" -> {
+                val name = body.optString("name", "")
+                if (!StoragePolicy.isSafeClipName(name)) return fail(400, "Bad clip name.")
+                if (!clips.delete(name)) return fail(404, "Clip not found.")
+            }
+            else -> return fail(404, "Unknown control.")
+        }
+        json(out, 200, JSONObject().put("ok", true).put("status", CameraEngine.statusJson(ctx, events)))
     }
 
     private fun clipList(): JSONArray {
@@ -238,16 +356,35 @@ class WatchmanServer(
         out.flush()
     }
 
-    private fun respond(out: OutputStream, code: Int, type: String, body: ByteArray) {
+    private fun json(out: OutputStream, code: Int, j: JSONObject, extra: List<String> = emptyList()) =
+        respond(out, code, "application/json", j.toString().toByteArray(), extra)
+
+    private fun respond(out: OutputStream, code: Int, type: String, body: ByteArray, extra: List<String> = emptyList()) {
         val reason = when (code) {
-            200 -> "OK"; 400 -> "Bad Request"; 401 -> "Unauthorized"; 404 -> "Not Found"
-            429 -> "Too Many Requests"; 503 -> "Service Unavailable"; else -> "Error"
+            200 -> "OK"; 400 -> "Bad Request"; 401 -> "Unauthorized"; 404 -> "Not Found"; 409 -> "Conflict"
+            415 -> "Unsupported Media Type"; 429 -> "Too Many Requests"; 503 -> "Service Unavailable"; else -> "Error"
         }
-        out.write(
-            ("HTTP/1.1 $code $reason\r\nContent-Type: $type\r\nContent-Length: ${body.size}\r\n" +
-                "Cache-Control: no-store\r\nConnection: close\r\n\r\n").toByteArray()
-        )
+        val head = StringBuilder("HTTP/1.1 $code $reason\r\nContent-Type: $type\r\nContent-Length: ${body.size}\r\n")
+        head.append("Cache-Control: no-store\r\n")
+        for (h in extra) head.append(h).append("\r\n")
+        head.append("Connection: close\r\n\r\n")
+        out.write(head.toString().toByteArray())
         out.write(body)
         out.flush()
+    }
+
+    companion object {
+        private const val MAX_BODY = 16 * 1024
+
+        /** Motion settings a viewer may change from the app or the web page. */
+        val REMOTE_SETTINGS = listOf("sensitivity", "minArea", "cooldownSec", "clipSec")
+
+        private val PAGE_HEADERS = listOf(
+            "Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:; media-src 'self'; " +
+                "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'",
+            "X-Frame-Options: DENY",
+            "X-Content-Type-Options: nosniff",
+            "Referrer-Policy: no-referrer",
+        )
     }
 }

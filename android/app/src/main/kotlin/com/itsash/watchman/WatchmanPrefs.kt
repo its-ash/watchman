@@ -33,6 +33,11 @@ class WatchmanPrefs(context: Context) {
         get() = sp.getBoolean("dim", true)
         set(v) = sp.edit().putBoolean("dim", v).apply()
 
+    /** Record a clip when motion is seen. Off: motion is only listed; clips come from Record (app or web). */
+    var autoRecord: Boolean
+        get() = sp.getBoolean("autoRecord", false)
+        set(v) = sp.edit().putBoolean("autoRecord", v).apply()
+
     var sensitivity: Int
         get() = sp.getInt("sensitivity", 60)
         set(v) = sp.edit().putInt("sensitivity", v.coerceIn(1, 100)).apply()
@@ -67,7 +72,7 @@ class WatchmanPrefs(context: Context) {
     fun clipsDir(): File = File(ctx.filesDir, "clips").also { it.mkdirs() }
 
     fun toMap(): Map<String, Any> = mapOf(
-        "facing" to facing, "audio" to audio, "dim" to dim, "sensitivity" to sensitivity,
+        "facing" to facing, "audio" to audio, "dim" to dim, "autoRecord" to autoRecord, "sensitivity" to sensitivity,
         "minArea" to minArea, "cooldownSec" to cooldownSec, "clipSec" to clipSec,
         "storageMb" to storageMb, "cameraName" to cameraName, "pin" to pin, "port" to port,
     )
@@ -77,6 +82,7 @@ class WatchmanPrefs(context: Context) {
             "facing" -> facing = if (value == "front") "front" else "back"
             "audio" -> audio = value == true
             "dim" -> dim = value == true
+            "autoRecord" -> autoRecord = value == true
             "sensitivity" -> sensitivity = (value as Number).toInt()
             "minArea" -> minArea = (value as Number).toInt()
             "cooldownSec" -> cooldownSec = (value as Number).toInt()

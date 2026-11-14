@@ -24,9 +24,11 @@ class EventStore(context: Context) {
     }
 
     @Synchronized
-    fun add(tsMs: Long, score: Double): Long {
+    fun add(tsMs: Long, score: Double, manual: Boolean = false): Long {
         val id = nextId++
-        items.add(JSONObject().put("id", id).put("ts", tsMs).put("score", Math.round(score * 1000) / 10.0))
+        val e = JSONObject().put("id", id).put("ts", tsMs).put("score", Math.round(score * 1000) / 10.0)
+        if (manual) e.put("manual", true)
+        items.add(e)
         while (items.size > 200) items.removeAt(0)
         save()
         return id

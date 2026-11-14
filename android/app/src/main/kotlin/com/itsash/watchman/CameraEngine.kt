@@ -17,6 +17,8 @@ object CameraEngine {
     @Volatile var recording = false
     @Volatile var recordingAvailable = true
     @Volatile var facing = "back"
+    @Volatile var torch = false
+    @Volatile var hasTorch = false
     @Volatile var lastMotionMs = 0L
     @Volatile var motionNow = false
     @Volatile var port = 0
@@ -61,6 +63,8 @@ object CameraEngine {
         synchronized(lock) { jpeg = null; seq = 0; lock.notifyAll() }
         recording = false
         motionNow = false
+        torch = false
+        hasTorch = false
         error = null
         viewers.set(0)
     }
@@ -81,6 +85,7 @@ object CameraEngine {
         return mapOf(
             "running" to running, "recording" to recording, "recordingAvailable" to recordingAvailable,
             "facing" to facing, "lastMotionMs" to lastMotionMs, "motion" to motionNow,
+            "torch" to torch, "hasTorch" to hasTorch,
             "viewers" to viewers.get(), "port" to port, "addresses" to addresses(),
             "pin" to p.pin, "name" to p.cameraName, "error" to error,
         )
@@ -91,8 +96,12 @@ object CameraEngine {
         val p = WatchmanPrefs(ctx)
         return JSONObject()
             .put("app", "watchman").put("name", p.cameraName).put("facing", facing)
-            .put("recording", recording).put("motion", motionNow).put("lastMotionMs", lastMotionMs)
-            .put("viewers", viewers.get()).put("audio", p.audio)
+            .put("running", running).put("recording", recording).put("recordingAvailable", recordingAvailable)
+            .put("motion", motionNow).put("lastMotionMs", lastMotionMs)
+            .put("torch", torch).put("hasTorch", hasTorch)
+            .put("viewers", viewers.get()).put("audio", p.audio).put("autoRecord", p.autoRecord)
+            .put("sensitivity", p.sensitivity).put("minArea", p.minArea)
+            .put("cooldownSec", p.cooldownSec).put("clipSec", p.clipSec)
             .put("lastEventId", events.since(0).let { a -> if (a.length() == 0) 0 else a.getJSONObject(a.length() - 1).optLong("id") })
             .put("now", System.currentTimeMillis())
     }

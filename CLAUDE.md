@@ -11,6 +11,8 @@ background. Kotlin owns the camera, server and services; Flutter is the UI.
   - `MotionDetector.kt`: pure. `downscaleLuma` (Y plane to 64x48 grid, honours strides), `MotionDetector`
     (sensitivity 1..100 sets the brightness step, `minAreaPercent` ignores small changes, 2 warm-up frames),
     `MotionGate` (cooldown, no trigger while recording). Tests: `src/test/.../LogicTest.kt`.
+    Motion always makes an event; it records a clip only when `autoRecord` is on (default off). Clips otherwise
+    come from Record (`ACTION_RECORD`, a `manual` event).
   - `PinGuard.kt`: pure. PIN format (4-6 digits), generation, constant-time check, 5 wrong tries lock a client
     IP for 60 s (a request with no PIN is not a guess).
   - `StoragePolicy.kt`: pure. Oldest-first deletion down to the limit (newest clip always kept), safe clip name regex.
@@ -20,9 +22,19 @@ background. Kotlin owns the camera, server and services; Flutter is the UI.
     when the phone cannot bind both (`recordingAvailable=false`: events still logged, no clips). Partial wake lock
     and Wi-Fi lock only while running. Stop: notification action or app.
   - `CameraEngine.kt`: process-wide state (running, recording, latest JPEG + sequence, viewer count, preview sink).
-  - `WatchmanServer.kt`: plain `ServerSocket` HTTP/1.1. Routes: `/hello` (no PIN), `/status`, `/events?since=N`,
-    `/clips`, `/clips/<name>.mp4` (Range), `/snapshot.jpg`, `/stream` (multipart/x-mixed-replace, part header has
-    Content-Length). PIN as header `X-Pin` or query `pin`.
+  - `WatchmanServer.kt`: plain `ServerSocket` HTTP/1.1 (GET + POST), used by the viewer app and by browsers.
+    Open: `GET /` (web page from `src/main/assets/web/index.html`), `GET /hello`, `POST /login {pin}` (sets the
+    `wm_session` cookie, HttpOnly, SameSite=Strict), `POST /logout`. Behind the PIN (header `X-Pin`, query `pin`,
+    or the session cookie): `/status` (state + motion settings), `/events?since=N`, `/clips`,
+    `/clips/<name>.mp4` (Range), `/snapshot.jpg`, `/stream` (multipart/x-mixed-replace, part header has
+    Content-Length), and controls `POST /control/{switch,torch {on},record,settings {autoRecord,sensitivity,minArea,
+    cooldownSec,clipSec},delete-clip {name}}` -> `{ok, status}` or `{error}` (409 when refused). Every POST must
+    be `application/json` (CSRF guard). Controls reach the service as intents (`ACTION_SWITCH/TORCH/RECORD`).
+  - `WebSessions.kt`: pure. Browser session tokens (7 days, max 32, tied to the PIN they were issued under),
+    cookie parsing. Tests in `LogicTest.kt`.
+  - `src/main/assets/web/index.html`: the browser viewer (no external files; CSP set by the server). PIN login,
+    MJPEG live view, switch/light/record/snapshot, motion sliders, events and clips (play, download, delete).
+    Keep it in step with the app's `live_screen` / `events_screen`: both clients get the same controls.
   - `MonitorService.kt`: viewer foreground service (`specialUse`), polls `/events` of saved cameras with
     `monitor=true` every 5 s, notification per new event. First poll only sets the baseline. Its Stop action
     clears the monitor flags.
@@ -32,13 +44,13 @@ background. Kotlin owns the camera, server and services; Flutter is the UI.
 - `lib/logic/`: pure Dart, tested. `models`, `rules` (PinRules, StorageLimits, Addresses, Fmt), `mjpeg_parser`,
   `camera_client` (HTTP client for the viewer; tested against a local fake server).
 - `lib/platform/watchman_platform.dart`: `WatchmanPlatform` interface (fakes in tests) + channel implementation.
-- `lib/screens/`: `mode_screen` (first screen), `camera_screen`, `camera_clips_screen`, `viewer_screen`,
-  `live_screen`, `events_screen`, `clip_player_screen`, `settings_screen` (ends with `UiAppearanceSection`,
+- `lib/screens/`: `mode_screen` (first screen), `camera_screen` (shows the browser address too), `camera_clips_screen`,
+  `viewer_screen`, `live_screen` (remote controls + motion settings sheet), `events_screen` (play, download, delete), `clip_player_screen`, `settings_screen` (ends with `UiAppearanceSection`,
   `UiUpdateSection(storeId: 'watchman')`, `UiDeveloperSection`).
 
 ## Channel contract
 
-MethodChannel `com.itsash.watchman/control`: `getConfig`, `setConfig{key,value}` (facing, audio, dim, sensitivity,
+MethodChannel `com.itsash.watchman/control`: `getConfig`, `setConfig{key,value}` (facing, audio, dim, autoRecord, sensitivity,
 minArea, cooldownSec, clipSec, storageMb, cameraName, pin), `permissionStatus`, `requestPermissions{names}`
 (camera, microphone, notifications), `startCamera`, `stopCamera`, `switchCamera`, `cameraState`, `regeneratePin`,
 `listClips`, `deleteClip{name}`, `deleteAllClips`, `localEvents`, `clearEvents`, `enforceLimit`, `savedCameras`,

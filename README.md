@@ -8,10 +8,12 @@ Turn an old phone into a home security camera on your Wi-Fi. No cloud, no accoun
 
 - **Two modes.** Camera: the old phone watches. Viewer: your own phone watches it.
 - **Motion detection.** Compares small grayscale copies of the picture. Sensitivity, "ignore small changes" and a cooldown between clips are adjustable.
-- **Clips.** On motion the camera records a short clip (5 to 60 s) with a timestamp. Optional sound. Delete clips, or set a storage limit and the oldest are removed first.
+- **Clips.** Press Record for a short clip (5 to 60 s) with a timestamp. Turn on **Auto record** and motion records one by itself (off by default: motion is then only listed). Optional sound. Delete clips, or set a storage limit and the oldest are removed first.
 - **Live view.** Full-screen MJPEG stream over your Wi-Fi, protected by a 4 to 6 digit PIN shown on the camera phone.
 - **Finds cameras by itself** with mDNS (`_watchman._tcp`), or add one by IP address.
-- **Events and clips on the viewer.** See the motion list, play or download any clip.
+- **Watch in any browser.** Open `http://<camera-ip>:8765/` on a phone or computer on the same Wi-Fi and enter the PIN. No app needed on that device.
+- **Remote controls, in the app and in the browser.** Switch front/back camera, turn the light on, record a clip now, take a snapshot, and change the motion settings.
+- **Events and clips on the viewer.** See the motion list, play, download or delete any clip.
 - **Monitor.** Turn it on and the viewer notifies you when a camera sees motion, even with the app closed.
 - **Keeps working with the screen off** (foreground service). Optional dim screen while watching.
 - Everything stays on your local network.

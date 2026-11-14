@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:watchman/logic/camera_client.dart';
+import 'package:watchman/logic/models.dart';
 
 /// Runs the client against a small local server that behaves like the camera.
 void main() {
   late HttpServer server;
+  final posts = <String, Object?>{};
   final frames = [
     List<int>.generate(120, (i) => i),
     List<int>.generate(80, (i) => 200 - i),
@@ -24,6 +26,22 @@ void main() {
       final pin = req.headers.value('x-pin') ?? req.uri.queryParameters['pin'];
       if (pin != '1234') {
         res.statusCode = 401;
+        await res.close();
+        return;
+      }
+      if (req.method == 'POST') {
+        posts[req.uri.path] = jsonDecode(await utf8.decodeStream(req));
+        expect(req.headers.contentType?.mimeType, 'application/json');
+        switch (req.uri.path) {
+          case '/control/record':
+            res.statusCode = 409;
+            res.write(jsonEncode({'error': 'Already recording.'}));
+          default:
+            res.write(jsonEncode({
+              'ok': true,
+              'status': {'name': 'Test cam', 'torch': true, 'hasTorch': true, 'sensitivity': 80},
+            }));
+        }
         await res.close();
         return;
       }
@@ -93,6 +111,46 @@ void main() {
   test('clipUrl carries the PIN in the query', () {
     expect(client('1234').clipUrl('clip_a.mp4'), contains('pin=1234'));
     expect(client('1234').clipUrl('clip_a.mp4'), contains('/clips/clip_a.mp4'));
+  });
+
+  test('controls send JSON with the PIN and return the new status', () async {
+    final s = await client('1234').setTorch(true);
+    expect(posts['/control/torch'], {'on': true});
+    expect(s.torch, isTrue);
+    expect(s.hasTorch, isTrue);
+    expect(s.sensitivity, 80);
+    await client('1234').updateSettings({'sensitivity': 80});
+    expect(posts['/control/settings'], {'sensitivity': 80});
+    await client('1234').setAutoRecord(true);
+    expect(posts['/control/settings'], {'autoRecord': true});
+    await client('1234').deleteClip('clip_a.mp4');
+    expect(posts['/control/delete-clip'], {'name': 'clip_a.mp4'});
+  });
+
+  test('a refused control carries the camera reason', () async {
+    await expectLater(
+      client('1234').recordNow(),
+      throwsA(isA<ControlFailed>().having((e) => e.message, 'message', 'Already recording.')),
+    );
+  });
+
+  test('controls with a wrong PIN throw PinRejected', () async {
+    await expectLater(client('0000').switchCamera(), throwsA(isA<PinRejected>()));
+  });
+
+  test('remoteStatus fills defaults for older cameras', () async {
+    final s = await client('1234').remoteStatus();
+    expect(s.name, 'Test cam');
+    expect(s.hasTorch, isFalse);
+    expect(s.recordingAvailable, isTrue);
+    expect(s.clipSec, 15);
+    expect(s.autoRecord, isNull); // an older camera: no switch to show
+  });
+
+  test('manual events parse', () {
+    final e = MotionEvent.parseList('[{"id":3,"ts":5,"score":0,"manual":true,"clip":"c.mp4"},{"id":1,"ts":1,"score":2}]');
+    expect(e.first.manual, isTrue);
+    expect(e.last.manual, isFalse);
   });
 
   test('download writes the file and reports progress', () async {

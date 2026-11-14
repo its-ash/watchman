@@ -54,10 +54,43 @@ class _EventsScreenState extends State<EventsScreen> {
       builder: (_) => ClipPlayerScreen(
         url: _client.clipUrl(clip),
         title: Fmt.when(time),
-        actions: [UiIconButton(Icons.download_rounded, tooltip: 'Download', onPressed: () => _download(clip))],
+        actions: [
+          UiIconButton(Icons.download_rounded, tooltip: 'Download', onPressed: () => _download(clip)),
+          Builder(
+            builder: (ctx) => UiIconButton(Icons.delete_outline_rounded, tooltip: 'Delete', onPressed: () async {
+              if (await _delete(clip, time) && ctx.mounted) Navigator.of(ctx).pop();
+            }),
+          ),
+        ],
       ),
     ));
   }
+
+  /// Deletes the clip on the camera phone. Returns true when it is gone.
+  Future<bool> _delete(String clip, DateTime time) async {
+    final ok = await UiDialog.confirm(
+      context,
+      title: 'Delete this clip?',
+      message: '${Fmt.when(time)}\nIt is removed from the camera phone.',
+      destructive: true,
+      confirmLabel: 'Delete',
+    );
+    if (ok != true) return false;
+    try {
+      await _client.deleteClip(clip);
+      if (mounted) context.showToast('Clip deleted.', status: UiStatus.success);
+      await _load();
+      return true;
+    } catch (e) {
+      if (mounted) {
+        context.showToast(e is ControlFailed || e is PinRejected ? e.toString() : 'Could not reach the camera.',
+            status: UiStatus.danger);
+      }
+      return false;
+    }
+  }
+
+  String _what(MotionEvent e) => e.manual ? 'Recorded from a viewer' : '${e.score.toStringAsFixed(1)}% of the picture moved';
 
   Future<void> _download(String clip) async {
     if (_downloading != null) return;
@@ -107,9 +140,11 @@ class _EventsScreenState extends State<EventsScreen> {
                         UiListTile(
                           Fmt.when(e.time),
                           subtitle: e.clip == null
-                              ? '${e.score.toStringAsFixed(1)}% of the picture moved · no clip'
-                              : '${e.score.toStringAsFixed(1)}% of the picture moved · ${Fmt.bytes(_clips[e.clip]?.size ?? 0)}',
-                          icon: e.clip == null ? Icons.sensors_rounded : Icons.play_circle_rounded,
+                              ? '${_what(e)} · no clip'
+                              : '${_what(e)} · ${Fmt.bytes(_clips[e.clip]?.size ?? 0)}',
+                          icon: e.clip == null
+                              ? (e.manual ? Icons.fiber_manual_record_rounded : Icons.sensors_rounded)
+                              : Icons.play_circle_rounded,
                           iconStatus: e.clip == null ? UiStatus.neutral : UiStatus.accent,
                           onTap: e.clip == null ? null : () => _play(e.clip!, e.time),
                           trailing: e.clip == null

@@ -17,6 +17,16 @@ class PinRejected implements Exception {
   String toString() => locked ? 'Too many wrong PINs. Try again in a minute.' : 'Wrong PIN.';
 }
 
+/// The camera refused a control (e.g. "Already recording."). [message] is meant for the user.
+class ControlFailed implements Exception {
+  const ControlFailed(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// HTTP client for one Watchman camera on the local network.
 class CameraClient {
   CameraClient({required this.host, required this.port, required this.pin});
@@ -67,6 +77,54 @@ class CameraClient {
 
   /// Throws [PinRejected] when the PIN is wrong.
   Future<Map<String, dynamic>> status() async => jsonDecode(await _text('/status')) as Map<String, dynamic>;
+
+  Future<RemoteStatus> remoteStatus() async => RemoteStatus.fromJson(await status());
+
+  /// POSTs a control. Returns the camera's status right after it; throws [ControlFailed] with the camera's
+  /// reason when it refuses, [PinRejected] on a wrong PIN.
+  Future<RemoteStatus> _control(String path, [Map<String, Object?> body = const {}]) async {
+    final c = _http();
+    try {
+      final req = await c.postUrl(_uri(path));
+      req.headers.set('X-Pin', pin);
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode(body));
+      final res = await req.close().timeout(const Duration(seconds: 8));
+      final text = await utf8.decodeStream(res).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 401 || res.statusCode == 429) throw PinRejected(locked: res.statusCode == 429);
+      Map<String, dynamic>? j;
+      try {
+        j = jsonDecode(text) as Map<String, dynamic>;
+      } catch (_) {}
+      if (res.statusCode != 200) {
+        // A camera on Watchman 1.0.1 or older has no controls: it answers every POST with {"error":"bad request"}.
+        final error = j?['error'] as String?;
+        if (error == null || error == 'bad request') {
+          throw const ControlFailed('Update Watchman on the camera phone to use this.');
+        }
+        throw ControlFailed(error);
+      }
+      final s = j?['status'];
+      return s is Map<String, dynamic> ? RemoteStatus.fromJson(s) : await remoteStatus();
+    } finally {
+      c.close(force: true);
+    }
+  }
+
+  Future<RemoteStatus> switchCamera() => _control('/control/switch');
+
+  Future<RemoteStatus> setTorch(bool on) => _control('/control/torch', {'on': on});
+
+  /// Records one clip of the camera's clip length now.
+  Future<RemoteStatus> recordNow() => _control('/control/record');
+
+  /// Motion settings: any of `sensitivity`, `minArea`, `cooldownSec`, `clipSec`.
+  Future<RemoteStatus> updateSettings(Map<String, int> values) => _control('/control/settings', values);
+
+  /// Turns recording on motion on or off.
+  Future<RemoteStatus> setAutoRecord(bool on) => _control('/control/settings', {'autoRecord': on});
+
+  Future<void> deleteClip(String name) => _control('/control/delete-clip', {'name': name});
 
   Future<List<MotionEvent>> events({int since = 0}) async =>
       MotionEvent.parseList(await _text('/events', {'since': '$since'}));

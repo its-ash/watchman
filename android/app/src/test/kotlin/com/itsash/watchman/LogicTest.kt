@@ -165,3 +165,53 @@ class StoragePolicyTest {
         assertFalse(StoragePolicy.isSafeClipName(""))
     }
 }
+
+class WebSessionsTest {
+    @Test fun tokenWorksForItsPin() {
+        val s = WebSessions()
+        val t = s.create("1234", 0)
+        assertEquals(48, t.length)
+        assertTrue(s.isValid(t, "1234", 1000))
+        assertFalse(s.isValid("nope", "1234", 1000))
+        assertFalse(s.isValid(null, "1234", 1000))
+    }
+
+    @Test fun changingThePinLogsBrowsersOut() {
+        val s = WebSessions()
+        val t = s.create("1234", 0)
+        assertFalse(s.isValid(t, "9999", 10))
+        assertFalse(s.isValid(t, "1234", 20)) // dropped for good, not revived by the old PIN
+    }
+
+    @Test fun tokensExpire() {
+        val s = WebSessions(ttlMs = 100)
+        val t = s.create("1234", 0)
+        assertTrue(s.isValid(t, "1234", 99))
+        assertFalse(s.isValid(t, "1234", 100))
+    }
+
+    @Test fun oldestTokenGoesWhenFull() {
+        val s = WebSessions(max = 2)
+        val a = s.create("1234", 0)
+        val b = s.create("1234", 1)
+        val c = s.create("1234", 2)
+        assertFalse(s.isValid(a, "1234", 3))
+        assertTrue(s.isValid(b, "1234", 3))
+        assertTrue(s.isValid(c, "1234", 3))
+    }
+
+    @Test fun logoutRemovesToken() {
+        val s = WebSessions()
+        val t = s.create("1234", 0)
+        s.remove(t)
+        assertFalse(s.isValid(t, "1234", 1))
+    }
+
+    @Test fun cookieParsing() {
+        assertEquals("abc", WebSessions.cookie("a=1; wm_session=abc; b=2"))
+        assertEquals("abc", WebSessions.cookie("wm_session=abc"))
+        assertEquals(null, WebSessions.cookie("xwm_session=abc"))
+        assertEquals(null, WebSessions.cookie("wm_session="))
+        assertEquals(null, WebSessions.cookie(null))
+    }
+}
