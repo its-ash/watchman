@@ -53,6 +53,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
   }
 
   Future<void> _store(List<SavedCamera> list) async {
+    if (!mounted) return;
     setState(() => _saved = list);
     await _p.saveCameras(list);
   }
@@ -73,6 +74,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
     setState(() => _busy = true);
     try {
       await CameraClient(host: host, port: port, pin: pin).status();
+      if (!mounted) return null;
       final cam = SavedCamera(name: name, host: host, port: port, pin: pin);
       final list = [..._saved.where((c) => c.key != cam.key), cam];
       await _store(list);
@@ -96,7 +98,8 @@ class _ViewerScreenState extends State<ViewerScreen> {
     final existing = _saved.where((c) => c.key == f.key).firstOrNull;
     if (existing != null) return _open(existing);
     final cam = await _pair(f.name, f.host, f.port);
-    if (cam != null) _open(cam);
+    if (!mounted || cam == null) return;
+    _open(cam);
   }
 
   Future<void> _addManual() async {
@@ -126,7 +129,8 @@ class _ViewerScreenState extends State<ViewerScreen> {
     if (mounted) setState(() => _busy = false);
     if (!mounted) return;
     final cam = await _pair(name, addr.host, addr.port);
-    if (cam != null) _open(cam);
+    if (!mounted || cam == null) return;
+    _open(cam);
   }
 
   Future<void> _remove(SavedCamera cam) async {
@@ -137,18 +141,20 @@ class _ViewerScreenState extends State<ViewerScreen> {
       destructive: true,
       confirmLabel: 'Forget',
     );
-    if (ok) await _store(_saved.where((c) => c.key != cam.key).toList());
+    if (!mounted || !ok) return;
+    await _store(_saved.where((c) => c.key != cam.key).toList());
   }
 
   Future<void> _setMonitor(SavedCamera cam, bool on) async {
     if (on) {
       // Android 13+ needs the notification permission to show motion alerts.
       final perm = await _p.requestPermissions(['notifications']);
-      if (perm['notifications'] != true && mounted) {
-        context.showToast('Allow notifications to get motion alerts.', status: UiStatus.warning);
+      if (perm['notifications'] != true) {
+        if (mounted) context.showToast('Allow notifications to get motion alerts.', status: UiStatus.warning);
         return;
       }
     }
+    if (!mounted) return;
     await _store(_saved.map((c) => c.key == cam.key ? c.copyWith(monitor: on) : c).toList());
   }
 

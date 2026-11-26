@@ -136,11 +136,16 @@ class CameraClient {
     late StreamController<Uint8List> controller;
     HttpClient? client;
     StreamSubscription<List<int>>? sub;
+    var cancelled = false;
     controller = StreamController<Uint8List>(
       onListen: () async {
         client = _http();
         try {
           final res = await _get(client!, '/stream');
+          if (cancelled) {
+            client?.close(force: true);
+            return;
+          }
           final parser = MjpegParser();
           sub = res.listen(
             (chunk) {
@@ -149,21 +154,28 @@ class CameraClient {
               }
             },
             onError: (Object e) {
-              if (!controller.isClosed) controller.addError(e);
+              client?.close(force: true);
+              if (!controller.isClosed) {
+                controller.addError(e);
+                controller.close();
+              }
             },
             onDone: () {
+              client?.close(force: true);
               if (!controller.isClosed) controller.close();
             },
             cancelOnError: true,
           );
         } catch (e) {
-          if (!controller.isClosed) {
+          client?.close(force: true);
+          if (!cancelled && !controller.isClosed) {
             controller.addError(e);
             await controller.close();
           }
         }
       },
       onCancel: () async {
+        cancelled = true;
         await sub?.cancel();
         client?.close(force: true);
       },

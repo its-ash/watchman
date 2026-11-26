@@ -41,7 +41,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         prefs = WatchmanPrefs(this)
-        events = EventStore(this)
+        events = EventStore.get(this)
         clips = ClipStore(prefs, events)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
 

@@ -92,11 +92,18 @@ class CameraService : LifecycleService() {
     private var lastFrame = 0L
     private var motionUntil = 0L
     private val stopClip = Runnable { activeRecording?.stop() }
+    private val finishShutdown = Runnable {
+        if (CameraEngine.running) return@Runnable
+        try { provider?.unbindAll() } catch (_: Exception) {}
+        releaseLocks()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
 
     override fun onCreate() {
         super.onCreate()
         prefs = WatchmanPrefs(this)
-        events = EventStore(this)
+        events = EventStore.get(this)
         clips = ClipStore(prefs, events)
     }
 
@@ -108,7 +115,14 @@ class CameraService : LifecycleService() {
                 prefs.facing = if (prefs.facing == "front") "back" else "front"
                 bindCamera()
             }
-            ACTION_REBIND -> bindCamera()
+            ACTION_REBIND -> {
+                if (CameraEngine.running && Build.VERSION.SDK_INT >= 29) {
+                    try {
+                        promoteForeground(notificationText())
+                    } catch (_: Exception) {}
+                }
+                bindCamera()
+            }
             ACTION_TORCH -> setTorch(intent.getBooleanExtra("on", false))
             ACTION_RECORD -> recordNow()
             else -> startWatching()
@@ -116,15 +130,26 @@ class CameraService : LifecycleService() {
         return START_NOT_STICKY
     }
 
+    @SuppressLint("InlinedApi")
+    private fun foregroundTypes(): Int {
+        var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+        if (prefs.audio && hasMic()) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        return types
+    }
+
+    @SuppressLint("InlinedApi")
+    private fun promoteForeground(text: String) {
+        if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIF_ID, notification(text), foregroundTypes())
+        else startForeground(NOTIF_ID, notification(text))
+    }
+
     @SuppressLint("WakelockTimeout", "InlinedApi")
     private fun startWatching() {
         if (CameraEngine.running) return
+        main.removeCallbacks(finishShutdown)
         createChannel()
         try {
-            var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            if (prefs.audio && hasMic()) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIF_ID, notification("Starting..."), types)
-            else startForeground(NOTIF_ID, notification("Starting..."))
+            promoteForeground("Starting...")
         } catch (e: Exception) {
             CameraEngine.error = "Could not start the camera service: ${e.message}"
             stopSelf()
@@ -372,12 +397,8 @@ class CameraService : LifecycleService() {
         server = null
         CameraEngine.wakeAll()
         // Give the recorder a moment to finish the file before the camera is released.
-        main.postDelayed({
-            try { provider?.unbindAll() } catch (_: Exception) {}
-            releaseLocks()
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-        }, 800)
+        main.removeCallbacks(finishShutdown)
+        main.postDelayed(finishShutdown, 800)
     }
 
     private fun releaseLocks() {
@@ -388,6 +409,7 @@ class CameraService : LifecycleService() {
     }
 
     override fun onDestroy() {
+        main.removeCallbacksAndMessages(null)
         if (CameraEngine.running) {
             CameraEngine.running = false
             try { nsdListener?.let { nsd?.unregisterService(it) } } catch (_: Exception) {}
@@ -406,10 +428,13 @@ class CameraService : LifecycleService() {
         nm.createNotificationChannel(NotificationChannel(CHANNEL, "Watching", NotificationManager.IMPORTANCE_LOW))
     }
 
-    private fun updateNotification() {
+    private fun notificationText(): String {
         val ip = CameraEngine.addresses().firstOrNull()
-        val text = if (ip != null && CameraEngine.port != 0) "Watching on $ip:${CameraEngine.port}" else "Watching"
-        getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notification(text))
+        return if (ip != null && CameraEngine.port != 0) "Watching on $ip:${CameraEngine.port}" else "Watching"
+    }
+
+    private fun updateNotification() {
+        getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notification(notificationText()))
     }
 
     private fun notification(text: String): Notification {

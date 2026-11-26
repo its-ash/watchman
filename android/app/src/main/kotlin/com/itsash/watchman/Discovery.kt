@@ -16,7 +16,7 @@ class Discovery(context: Context, private val onChange: (List<Map<String, Any>>)
     private val queue = ArrayDeque<NsdServiceInfo>()
     private var resolving = false
     private var listener: NsdManager.DiscoveryListener? = null
-    private var lock: WifiManager.MulticastLock? = null
+    @Volatile private var lock: WifiManager.MulticastLock? = null
 
     fun start() {
         if (listener != null) return
@@ -26,7 +26,10 @@ class Discovery(context: Context, private val onChange: (List<Map<String, Any>>)
         } catch (_: Exception) {}
         val l = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(t: String) {}
-            override fun onStartDiscoveryFailed(t: String, code: Int) { listener = null }
+            override fun onStartDiscoveryFailed(t: String, code: Int) {
+                listener = null
+                releaseLock()
+            }
             override fun onStopDiscoveryFailed(t: String, code: Int) {}
             override fun onDiscoveryStopped(t: String) {}
             override fun onServiceFound(s: NsdServiceInfo) {
@@ -44,17 +47,23 @@ class Discovery(context: Context, private val onChange: (List<Map<String, Any>>)
             nsd.discoverServices("_watchman._tcp.", NsdManager.PROTOCOL_DNS_SD, l)
         } catch (_: Exception) {
             listener = null
+            releaseLock()
         }
     }
 
     fun stop() {
         listener?.let { try { nsd.stopServiceDiscovery(it) } catch (_: Exception) {} }
         listener = null
-        try { lock?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
-        lock = null
+        releaseLock()
         queue.clear()
         found.clear()
         resolving = false
+    }
+
+    private fun releaseLock() {
+        val l = lock
+        lock = null
+        try { l?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
     }
 
     @Suppress("DEPRECATION")

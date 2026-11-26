@@ -6,7 +6,7 @@ import org.json.JSONObject
 import java.io.File
 
 /** Motion events of this camera, kept in events.json (newest 200). */
-class EventStore(context: Context) {
+class EventStore private constructor(context: Context) {
     private val file = File(context.applicationContext.filesDir, "events.json")
     private val items = ArrayList<JSONObject>()
     private var nextId = 1L
@@ -63,5 +63,15 @@ class EventStore(context: Context) {
 
     private fun save() {
         try { file.writeText(JSONArray(items).toString()) } catch (_: Exception) {}
+    }
+
+    companion object {
+        @Volatile
+        private var instance: EventStore? = null
+
+        fun get(context: Context): EventStore =
+            instance ?: synchronized(this) {
+                instance ?: EventStore(context.applicationContext).also { instance = it }
+            }
     }
 }

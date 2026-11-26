@@ -102,16 +102,18 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
     try {
       final names = ['camera', 'notifications', if (_config.audio) 'microphone'];
       final perm = await _p.requestPermissions(names);
+      if (!mounted) return;
       if (perm['camera'] != true) {
         setState(() => _error = 'Watchman needs the camera permission to watch.');
         return;
       }
       await _p.startCamera();
       await Future<void>.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
       await _refresh();
       if (_config.dim && mounted) _setDim(true);
     } catch (e) {
-      setState(() => _error = 'Could not start: $e');
+      if (mounted) setState(() => _error = 'Could not start: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

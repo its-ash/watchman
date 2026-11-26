@@ -8,6 +8,7 @@ import java.io.File
 import java.io.OutputStream
 import java.io.RandomAccessFile
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
@@ -47,8 +48,18 @@ class WatchmanServer(
 
     /** Binds the preferred port, or any free port when it is taken. Returns the port. */
     fun start(): Int {
-        val s = try { ServerSocket(prefs.port) } catch (_: Exception) { ServerSocket(0) }
-        s.reuseAddress = true
+        val s = ServerSocket()
+        try {
+            s.reuseAddress = true
+            try {
+                s.bind(InetSocketAddress(prefs.port))
+            } catch (_: Exception) {
+                s.bind(InetSocketAddress(0))
+            }
+        } catch (e: Exception) {
+            try { s.close() } catch (_: Exception) {}
+            throw e
+        }
         server = s
         pool.execute {
             while (!s.isClosed) {

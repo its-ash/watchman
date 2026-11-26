@@ -26,6 +26,7 @@ class _LiveScreenState extends State<LiveScreen> {
   StreamSubscription<Uint8List>? _sub;
   Timer? _retry;
   Timer? _poll;
+  Timer? _afterControl;
   Uint8List? _frame;
   String? _problem;
   bool _fatal = false;
@@ -62,7 +63,8 @@ class _LiveScreenState extends State<LiveScreen> {
       if (!mounted) return;
       setState(() => _status = s);
       if (done != null) context.showToast(done, status: UiStatus.success);
-      Timer(const Duration(milliseconds: 800), _refreshStatus);
+      _afterControl?.cancel();
+      _afterControl = Timer(const Duration(milliseconds: 800), _refreshStatus);
     } catch (e) {
       if (mounted) {
         context.showToast(e is ControlFailed || e is PinRejected ? e.toString() : 'Could not reach the camera.',
@@ -90,6 +92,7 @@ class _LiveScreenState extends State<LiveScreen> {
   void dispose() {
     _retry?.cancel();
     _poll?.cancel();
+    _afterControl?.cancel();
     _sub?.cancel();
     widget.platform.keepAwake(false);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -141,60 +144,63 @@ class _LiveScreenState extends State<LiveScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => setState(() => _chrome = !_chrome),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (_frame != null)
-              Image.memory(_frame!, gaplessPlayback: true, fit: BoxFit.contain)
-            else
-              const Center(child: UiSpinner(size: 32)),
-            if (_problem != null)
-              Align(
-                alignment: Alignment.center,
-                child: Padding(
-                  padding: const EdgeInsets.all(UiSpace.xl),
-                  child: UiAlert(_problem!, status: _fatal ? UiStatus.danger : UiStatus.warning),
-                ),
-              ),
-            if (_chrome) ...[
-              SafeArea(
-                child: Align(
-                  alignment: Alignment.topCenter,
+    return Theme(
+      data: UiTheme.dark(),
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _chrome = !_chrome),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (_frame != null)
+                Image.memory(_frame!, gaplessPlayback: true, fit: BoxFit.contain)
+              else
+                const Center(child: UiSpinner(size: 32)),
+              if (_problem != null)
+                Align(
+                  alignment: Alignment.center,
                   child: Padding(
-                    padding: const EdgeInsets.all(UiSpace.sm),
-                    child: Row(
-                      children: [
-                        UiIconButton(Icons.arrow_back_rounded, tooltip: 'Back', onPressed: () => Navigator.of(context).pop()),
-                        const SizedBox(width: UiSpace.sm),
-                        Expanded(
-                          child: Text(
-                            widget.camera.name,
-                            style: context.text.titleMedium?.copyWith(color: Colors.white),
-                            overflow: TextOverflow.ellipsis,
+                    padding: const EdgeInsets.all(UiSpace.xl),
+                    child: UiAlert(_problem!, status: _fatal ? UiStatus.danger : UiStatus.warning),
+                  ),
+                ),
+              if (_chrome) ...[
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.all(UiSpace.sm),
+                      child: Row(
+                        children: [
+                          UiIconButton(Icons.arrow_back_rounded, tooltip: 'Back', onPressed: () => Navigator.of(context).pop()),
+                          const SizedBox(width: UiSpace.sm),
+                          Expanded(
+                            child: Text(
+                              widget.camera.name,
+                              style: context.text.titleMedium?.copyWith(color: Colors.white),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        if (_frame != null && _problem == null) const UiStatusPill('Live', status: UiStatus.success, pulse: true),
-                      ],
+                          if (_frame != null && _problem == null) const UiStatusPill('Live', status: UiStatus.success, pulse: true),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              SafeArea(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.all(UiSpace.lg),
-                    child: _controls(),
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.all(UiSpace.lg),
+                      child: _controls(),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

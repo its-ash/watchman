@@ -180,14 +180,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 UiListGroup(
                   header: 'Motion detection',
-                  footer: 'Watchman compares small grayscale copies of the picture four times a second. '
-                      'Raise the sensitivity to notice fainter changes. Raise "ignore small changes" if shadows or '
-                      'sensor noise trigger clips.',
+                  footer: 'When Auto record is off, motion is only listed and clips are recorded only when you press '
+                      'Record in the viewer or the browser. Watchman compares small grayscale copies of the picture '
+                      'four times a second. Raise the sensitivity to notice fainter changes. Raise "ignore small '
+                      'changes" if shadows or sensor noise trigger clips.',
                   children: [
                     UiSwitchTile(
                       'Auto record',
-                      subtitle: 'Record a clip when motion is seen. Off: motion is only listed, and clips are '
-                          'recorded only when you press Record in the viewer or the browser.',
+                      subtitle: 'Record a clip when motion is seen.',
                       icon: Icons.fiber_manual_record_rounded,
                       value: c.autoRecord,
                       onChanged: (v) => _set('autoRecord', v),

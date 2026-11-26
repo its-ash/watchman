@@ -23,8 +23,8 @@ class MjpegParser {
         _buf.removeRange(0, headerEnd + 4);
         continue;
       }
-      final length = int.parse(m.group(1)!);
-      if (length <= 0 || length > _maxFrame) {
+      final length = int.tryParse(m.group(1)!);
+      if (length == null || length <= 0 || length > _maxFrame) {
         _buf.clear();
         break;
       }

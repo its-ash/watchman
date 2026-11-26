@@ -33,6 +33,7 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() => _error = null);
     try {
       final events = await _client.events();
@@ -78,7 +79,8 @@ class _EventsScreenState extends State<EventsScreen> {
     if (ok != true) return false;
     try {
       await _client.deleteClip(clip);
-      if (mounted) context.showToast('Clip deleted.', status: UiStatus.success);
+      if (!mounted) return true;
+      context.showToast('Clip deleted.', status: UiStatus.success);
       await _load();
       return true;
     } catch (e) {
@@ -93,7 +95,7 @@ class _EventsScreenState extends State<EventsScreen> {
   String _what(MotionEvent e) => e.manual ? 'Recorded from a viewer' : '${e.score.toStringAsFixed(1)}% of the picture moved';
 
   Future<void> _download(String clip) async {
-    if (_downloading != null) return;
+    if (!mounted || _downloading != null) return;
     setState(() {
       _downloading = clip;
       _progress = 0;
